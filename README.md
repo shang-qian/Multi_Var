@@ -38,73 +38,74 @@ A computational framework for improving genetic variants identification from 5,0
     -O VCF/GATK_${sample}_raw.vcf
 
 ## 4. Variants calling by Freebayes
-* freebayes-parallel $refdir/ram2_all.fa.100m.regions 32 -f $refdir/ram2_all.fa ${sample}.sorted.Add.bam  
->FB_${sample}_raw.vcf
+* freebayes-parallel *$refdir/ram2_all.fa.100m.regions 32 -f *$refdir/ram2_all.fa ${sample}.sorted.Add.bam >FB_${sample}_raw.vcf
 
 ## 5. Filter by Depth and Quality of each sample
-* GATK
-vcftools --vcf $GATK_${sample}_raw_vcf --minQ 20 --min-meanDP 5 --out GATK_${sample}_Q20_DP5 --recode --recode-INFO-all
-* Freebayes
-vcftools --vcf $FB_${sample}_raw_vcf --minQ 20 --min-meanDP 5 --out FB_${sample}_Q20_DP5 --recode --recode-INFO-all
+GATK
+* vcftools --vcf GATK_${sample}_raw_vcf --minQ 20 --min-meanDP 5 --out GATK_${sample}_Q20_DP5 --recode --recode-INFO-all
+
+Freebayes
+* vcftools --vcf FB_${sample}_raw_vcf --minQ 20 --min-meanDP 5 --out FB_${sample}_Q20_DP5 --recode --recode-INFO-all
 
 ## 6. Generate SNP and Indel vcf of each sample
-* GATK SNP
-vcftools --vcf GATK_${sample}_Q20_DP5.recode.vcf --remove-indels --out ${sample}_Q20_DP5_SNP_GK --recode --recode-INFO-all
-* GATK Indel
-vcftools --vcf GATK_${sample}_Q20_DP5.recode.vcf --keep-only-indels --out ${sample}_Q20_DP5_INDEL_GK --recode --recode-INFO-all
-* Freebayes SNP
-vcftools --vcf FB_${sample}_Q20_DP5.recode.vcf --remove-indels --out  ${sample}_Q20_DP5_SNP_FB --recode --recode-INFO-all
-* Freebayes Indel
-vcftools --vcf FB_${sample}_Q20_DP5.recode.vcf --keep-only-indels --out  ${sample}_Q20_DP5_INDEL_FB --recode --recode-INFO-all
+GATK SNP
+* vcftools --vcf GATK_${sample}_Q20_DP5.recode.vcf --remove-indels --out ${sample}_Q20_DP5_SNP_GK --recode --recode-INFO-all
+
+GATK Indel
+* vcftools --vcf GATK_${sample}_Q20_DP5.recode.vcf --keep-only-indels --out ${sample}_Q20_DP5_INDEL_GK --recode --recode-INFO-all
+
+Freebayes SNP
+* vcftools --vcf FB_${sample}_Q20_DP5.recode.vcf --remove-indels --out  ${sample}_Q20_DP5_SNP_FB --recode --recode-INFO-all
+
+Freebayes Indel
+* vcftools --vcf FB_${sample}_Q20_DP5.recode.vcf --keep-only-indels --out  ${sample}_Q20_DP5_INDEL_FB --recode --recode-INFO-all
 
 ## 7. Calculate the sequencing quality of SNP from each sample in GATK and Freebayes
 
 ### 7.1 SNP position 
-awk '/^NC/ {print $1"\t"$2"\t"$2+1}' ${sample}_Q20_DP5_SNP_FB |sort -k1,1 -k2,2n > ${sample}_pos_fb.bed
+* awk '/^NC/ {print '$1"\t"$2"\t"$2+1'}'' ${sample}_Q20_DP5_SNP_FB |sort -k1,1 -k2,2n > ${sample}_pos_fb.bed
 
 ### 7.2 sequencing quality in the SNP position
-* java -jar sam2tsv.jar -R $refdir/ram2_all.fa ${sample}.sorted.Add.bam --regions ${sample}_pos_fb.bed > ${sample}_pos_quality_fb.txt
+* java -jar sam2tsv.jar -R $refdir/ram2_all.fa  ${sample}.sorted.Add.bam --regions ${sample}_pos_fb.bed > ${sample}_pos_quality_fb.txt
 
-* awk '{if($10=="M") {print $4"\t"$8"\t"$8+1"\t"$9"\t"$6"\t"$7"\t"$10;tmp=$8;bq=$7}
-      if($10=="D") {print $4"\t"$8-1"\t"$8"\t"$9"\t"$6"\t"bq"\t"$10;tmp=$8}
-      if($10=="I") {print $4"\t"tmp"\t"tmp+1"\t"$9"\t"$6"\t"$7"\t"$10;bq=$7}} ' ${sample}_pos_quality_fb.txt > ${allposfile}.bed
+* awk '' ${sample}_pos_quality_fb.txt > ${allposfile}.bed
 
 * bedtools intersect -loj -a ${sample}_pos_fb.bed -b ${allposfile}.bed > ${sample}_quality_fb.info
 
 ### 7.3 calculation poisson probability (R)
 * allpos=read.csv(${sample}_quality_fb.info, head=F, sep="\t", stringsAsFactors=FALSE, quote = "")
-posname=paste(allpos[,1],allpos[,2],sep=":")
-nameallpos=cbind(allpos,posname)
-markerpos=unique(posname)  #####variants position
-markerposp=matrix(,length(markerpos),7)  #### Chromosome, position, totalR, RefR, AltR, SequencingError, Probability
-for (i in 1:length(markerpos)) ###Total variants number
-{
-tmp=nameallpos[nameallpos[,11]==markerpos[i],]
-refbaseq=tmp[tmp[,7]==tmp[,8],9] ###ref quality
-altbaseq=tmp[tmp[,7]!=tmp[,8],9] ###alt quality
-yesvalue=numeric()
-if(length(altbaseq)>0) 
-{for (k in 1:length(altbaseq))
-  {yesvalue[k]=10^(-(utf8ToInt(altbaseq[k])-33)/10)}  ####sequencing error
-markerposp[i,6]=mean(yesvalue)
-lambda=(length(refbaseq)+length(altbaseq))*mean(yesvalue)
-poisP=ppois(length(altbaseq), lambda)
-markerposp[i,7]=poisP
-}
-else
-{markerposp[i,6]="_"
- markerposp[i,7]=0}
-markerposp[i,1:2]=strsplit(markerpos[i],":")[[1]]
-markerposp[i,3]=length(refbaseq)+length(altbaseq)
-markerposp[i,4]=length(refbaseq)
-markerposp[i,5]=length(altbaseq)
-}
-write.table(markerposp,paste0(samplename,".Pois.result"),quote=F,col.names=F,row.names=T)
+* posname=paste(allpos[,1],allpos[,2],sep=":") 
+* nameallpos=cbind(allpos,posname) 
+* markerpos=unique(posname)  #####variants position 
+* markerposp=matrix(,length(markerpos),7)  #### Chromosome, position, totalR, RefR, AltR, SequencingError, Probability 
+* for (i in 1:length(markerpos)) ###Total variants number 
+* {
+* tmp=nameallpos[nameallpos[,11]==markerpos[i],] 
+* refbaseq=tmp[tmp[,7]==tmp[,8],9] ###ref quality 
+* altbaseq=tmp[tmp[,7]!=tmp[,8],9] ###alt quality 
+* yesvalue=numeric() 
+* if(length(altbaseq)>0)  
+* {for (k in 1:length(altbaseq))
+*  {yesvalue[k]=10^(-(utf8ToInt(altbaseq[k])-33)/10)}  ####sequencing error
+* markerposp[i,6]=mean(yesvalue)
+* lambda=(length(refbaseq)+length(altbaseq))*mean(yesvalue)
+* poisP=ppois(length(altbaseq), lambda)
+* markerposp[i,7]=poisP
+* }
+* else
+* {markerposp[i,6]="_"
+*  markerposp[i,7]=0}
+* markerposp[i,1:2]=strsplit(markerpos[i],":")[[1]]
+* markerposp[i,3]=length(refbaseq)+length(altbaseq)
+* markerposp[i,4]=length(refbaseq)
+* markerposp[i,5]=length(altbaseq)
+* }
+* write.table(markerposp,paste0(samplename,".Pois.result"),quote=F,col.names=F,row.names=T)
 
 ## 8. Construct rHID database
 ### 8.1 merge 5,061 samples’ vcf files
-bcftools merge --merge all Freebayes/FB*Q20_DP5.recode.vcf.gz -o Freebayes_combined_raw.vcf
-bcftools merge --merge all GATK/GATK *_Q20_DP5.recode.vcf.gz -o GATK_combined_raw.vcf
+* bcftools merge --merge all Freebayes/FB*Q20_DP5.recode.vcf.gz -o Freebayes_combined_raw.vcf
+* bcftools merge --merge all GATK/GATK *_Q20_DP5.recode.vcf.gz -o GATK_combined_raw.vcf
 
 ### 8.2 VQSR
 SNP:
@@ -162,11 +163,13 @@ SNP:
 * awk '{print $2"\t"$3"\t"$3+1"\t"$0}' ${sample}_gk.Pois.result |sort -k1,1 -k2,2n > 01Pois_bed/${sample}.bed
 * awk '/^NC/ {print $1"\t"$2"\t"$2+1"\t"$0}' GATK_${sample}_Q20_DP5.recode.vcf |sort -k1,1 -k2,2n > 02GK/02Vcf_bed/${sample}_vcf.bed
 * bedtools intersect -loj -a 01Pois_bed/${sample}.bed -b ${sample}_vcf.bed |awk '$12!="." {print $1"\t"$2"\t"$3"\t"$7"\t"$8"\t"$9"\t"$11"\t"$20}' > ${sample}_pois_qual.bed
+
 Indel:
 * awk '/^NC/ {print $1"\t"$2"\t"$2+1"\t"$6}' ${sample}_Q20_DP5_INDEL_GK.recode.vcf |sort -k1,1 -k2,2n > ${sample}_vcf.bed
 ### 9.2 Integrate rHID information
 SNP:
 * bedtools intersect -loj -a ${sample}_pois_qual.bed -b rHID.bed |awk '{ tmp=$1; for(i=2;i<=9;i++){tmp=tmp"\t"$i}; if($10==".") {print tmp"\tNo"}; if($10!=".") {print tmp"\tPos"}}' > ${sample}_positive_r_gk_SNP.txt
+
 Indel:
 * bedtools intersect -loj -a ${sample}_vcf.bed -b rHID.bed |awk '{ tmp=$1; for(i=2;i<=5;i++){tmp=tmp"\t"$i}; if($6==".") {print tmp"\tNo"}; if($6!=".") {print tmp"\tPos"}}' > ${sample}_positive_r_gk_INDEL.txt
 
@@ -256,7 +259,7 @@ write.table(Negative,paste(samplename,"_gk.Negative_Indel",sep=""),quote=F,col.n
 
 ### 11.4 list genotype and reads number:
 * awk '{nn=0; tmp1=$1"\t"$2"\t"$4; tmp2=$11"\t"$12"\t"$13 
-for(i=17;i<=NF;i++) 
+ for(i=17;i<=NF;i++) 
   { split($i,a,":"); 
     if(a[1]=="./."){tmp2=tmp2"\t."}
     if(a[1]!="./."){tmp2=tmp2"\t"a[1]":"a[3];nn=nn+1}   
