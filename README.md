@@ -160,12 +160,20 @@ Indel:
 ## 9. Identify the variants in rHID of each sample
 ### 9.1 Integrate quality 
 SNP:
-* awk '{print $2"\t"$3"\t"$3+1"\t"$0}' ${sample}_gk.Pois.result |sort -k1,1 -k2,2n > 01Pois_bed/${sample}.bed
-* awk '/^NC/ {print $1"\t"$2"\t"$2+1"\t"$0}' GATK_${sample}_Q20_DP5.recode.vcf |sort -k1,1 -k2,2n > 02GK/02Vcf_bed/${sample}_vcf.bed
-* bedtools intersect -loj -a 01Pois_bed/${sample}.bed -b ${sample}_vcf.bed |awk '$12!="." {print $1"\t"$2"\t"$3"\t"$7"\t"$8"\t"$9"\t"$11"\t"$20}' > ${sample}_pois_qual.bed
+*awk '{print $2"\t"$3"\t"$3+1"\t"$0}' ${sample}_gk.Pois.result
+|sort -k1,1 -k2,2n > 01Pois_bed/${sample}.bed*
+
+*awk '/^NC/ {print
+$1"\t"$2"\t"$2+1"\t"$0}' GATK_${sample}_Q20_DP5.recode.vcf
+|sort -k1,1 -k2,2n > 02GK/02Vcf_bed/${sample}_vcf.bed*
+
+*bedtools intersect -loj -a 01Pois_bed/${sample}.bed -b ${sample}_vcf.bed
+|awk '$12!="." {print
+$1"\t"$2"\t"$3"\t"$7"\t"$8"\t"$9"\t"$11"\t"$20}'> ${sample}_pois_qual.bed*
 
 Indel:
-* awk '/^NC/ {print $1"\t"$2"\t"$2+1"\t"$6}' ${sample}_Q20_DP5_INDEL_GK.recode.vcf |sort -k1,1 -k2,2n > ${sample}_vcf.bed
+awk \'/^NC/ {print '$1"\t"$2"\t"$2+1"\t"$6}'' \${sample}_Q20_DP5_INDEL_GK.recode.vcf |sort -k1,1 -k2,2n > ${sample}_vcf.bed
+
 ### 9.2 Integrate rHID information
 SNP:
 * bedtools intersect -loj -a ${sample}_pois_qual.bed -b rHID.bed |awk '{ tmp=$1; for(i=2;i<=9;i++){tmp=tmp"\t"$i}; if($10==".") {print tmp"\tNo"}; if($10!=".") {print tmp"\tPos"}}' > ${sample}_positive_r_gk_SNP.txt
@@ -229,7 +237,7 @@ write.table(Negative,paste(samplename,"_gk.Negative_Indel",sep=""),quote=F,col.n
 
 ## 11. Generate final variant list for all samples
 ### 11.1 SNP:
-* awk '{print $2"\t"$3"\t"$3+1}' ${sample}_gk.Positive_SNP > ${sample}_gk.venn
+* *awk '{print $2"\t"$3"\t"$3+1}' ${sample}_gk.Positive_SNP > ${sample}_gk.venn*
 * cat *gk.venn |sort -k1,1 -k2,2n |uniq >all_SNP_GK.bed
 * cat all_SNP_GK.bed all_SNP_FB.bed |sort -k1,1 -k2,2n |uniq > SNP_GK_FB.bed
 * bedtools intersect -loj -a SNP_GK_FB.bed -b all_SNP_GK.bed |bedtools intersect -loj -a - -b all_SNP_FB.bed >SNP_GK_FB_raw.bed
@@ -237,7 +245,7 @@ write.table(Negative,paste(samplename,"_gk.Negative_Indel",sep=""),quote=F,col.n
       if($4!="."&&$7==".") {print $1"\t"$2"\t"$3"\tGK"}
       if($4=="."&&$7!=".") {print $1"\t"$2"\t"$3"\tFB"}}' SNP_GK_FB_raw.bed > SNP_GK_FB_final.bed
 ### Indel:
-* awk '{print $2"\t"$3"\t"$3+1}' ${sample}_gk.Positive_Indel > ${sample}_gk.venn
+* *awk '{print $2"\\t"$3"\t"$3+1}' ${sample}_gk.Positive_Indel > ${sample}_gk.venn*
 * cat *gk.venn |sort -k1,1 -k2,2n |uniq >INDEL_GK.bed
 
 * cat INDEL_GK.bed INDEL_FB.bed |sort -k1,1 -k2,2n |uniq > INDEL_GK_FB.bed
@@ -257,7 +265,7 @@ write.table(Negative,paste(samplename,"_gk.Negative_Indel",sep=""),quote=F,col.n
 * awk '/^NC/ {print $1"\t"$2"\t"$2+1"\t"$0}' GATK_recalibrated_variants.vcf > GK_v.bed
 * bedtools intersect -loj -a SNP_INDEL_GK.bed -b GK_v.bed > SNP_INDEL_GK_final.vcf
 
-### 11.4 list genotype and reads number:
+### 11.4 list genotype and reads coverage for variants:
 * awk '{nn=0; tmp1=$1"\t"$2"\t"$4; tmp2=$11"\t"$12"\t"$13 
  for(i=17;i<=NF;i++) 
   { split($i,a,":"); 
