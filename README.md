@@ -1,53 +1,53 @@
 # Multi_Var
 A computational framework for improving genetic variants identification from 5,061 sheep sequencing data
 
-#1. Alignment for each sample
-Reference: ARS-UI_Ramb_v2.0 (https://www.ncbi.nlm.nih.gov/assembly/GCF_016772045.1)
-bowtie2 -p 32 -x Reference_Genome_index/ram2_genome -q ${sample}.fastq 2 >> mapping.log | samtools sort  - -o ${sample}.RAM2.sorted.bam
+## 1. Alignment for each sample
+* Reference: ARS-UI_Ramb_v2.0 (https://www.ncbi.nlm.nih.gov/assembly/GCF_016772045.1)
+* bowtie2 -p 32 -x Reference_Genome_index/ram2_genome -q ${sample}.fastq 2 >> mapping.log | samtools sort  - -o ${sample}.RAM2.sorted.bam
 
-2. Add sample information into the alignment Bam file
-gatk AddOrReplaceReadGroups \
+## 2. Add sample information into the alignment Bam file
+* gatk AddOrReplaceReadGroups \
 -I=${sample}.RAM2.sorted.bam \
 -O=${sample}.sorted.Add.bam \
 --RGID=$sample --RGLB=lib1 --RGPL=Ion_Torrent --RGPU=unit1 --RGSM=$sample
-samtools index ${sample}.sorted.Add.bam
-samtools flagstat ${sample}.sorted.Add.bam
+* samtools index ${sample}.sorted.Add.bam
+* samtools flagstat ${sample}.sorted.Add.bam
 
-3. Variants calling by GATK
-3.1 Generate gvcf file of each sample by HaplotypeCaller
-refdir=/mnt/ceph/bmurdoch/Shang/data/refer2_Ramb2
-bamfile=${sample}.sorted.Add.bam
-gatk --java-options "-Xmx320g" HaplotypeCaller  \
+## 3. Variants calling by GATK
+### 3.1 Generate gvcf file of each sample by HaplotypeCaller
+* refdir=/mnt/ceph/bmurdoch/Shang/data/refer2_Ramb2
+* bamfile=${sample}.sorted.Add.bam
+* gatk --java-options "-Xmx320g" HaplotypeCaller  \
    -R $refdir/ram2_all.fa \
    -I $bamfile \
    -O ${sample}_RAM2.g.vcf.gz \
    -ERC GVCF \
    --native-pair-hmm-threads 32
 
-3.2 Generate vcf file of each sample by GenotypeGVCFs
-gatk --java-options "-Xmx320g" GenomicsDBImport \
+### 3.2 Generate vcf file of each sample by GenotypeGVCFs
+* gatk --java-options "-Xmx320g" GenomicsDBImport \
        --genomicsdb-workspace-path database/${sample}_database \
        -L GATK/interval.list \
        --sample-name-map inputmap/input_${sample}.map \
        --tmp-dir=database/tmpdir
 
-gatk --java-options "-Xmx320g" GenotypeGVCFs \
+* gatk --java-options "-Xmx320g" GenotypeGVCFs \
     -R $refdir/ram2_all.fa  \
     -V gendb://database/${sample}_database \
     -stand-call-conf 10 \
     -O VCF/GATK_${sample}_raw.vcf
 
-4. Variants calling by Freebayes
-freebayes-parallel $refdir/ram2_all.fa.100m.regions 32 -f $refdir/ram2_all.fa ${sample}.sorted.Add.bam  
+## 4. Variants calling by Freebayes
+* freebayes-parallel $refdir/ram2_all.fa.100m.regions 32 -f $refdir/ram2_all.fa ${sample}.sorted.Add.bam  
 >FB_${sample}_raw.vcf
 
-5. Filter by Depth and Quality of each sample
-GATK:
+## 5. Filter by Depth and Quality of each sample
+* GATK:
 vcftools --vcf $GATK_${sample}_raw_vcf --minQ 20 --min-meanDP 5 --out GATK_${sample}_Q20_DP5 --recode --recode-INFO-all
-Freebayes:
+* Freebayes:
 vcftools --vcf $FB_${sample}_raw_vcf --minQ 20 --min-meanDP 5 --out FB_${sample}_Q20_DP5 --recode --recode-INFO-all
 
-6. Generate SNP and Indel vcf of each sample
+## 6. Generate SNP and Indel vcf of each sample
 GATK SNP:
 vcftools --vcf GATK_${sample}_Q20_DP5.recode.vcf --remove-indels --out ${sample}_Q20_DP5_SNP_GK --recode --recode-INFO-all
 GATK Indel:
