@@ -254,8 +254,8 @@ write.table(Negative,paste(samplename,"_gk.Negative_Indel",sep=""),quote=F,col.n
 * awk '/^NC/ {print $1"\t"$2"\t"$2+1"\t"$0}' GATK_recalibrated_variants.vcf > GK_v.bed
 * bedtools intersect -loj -a SNP_INDEL_GK.bed -b GK_v.bed > SNP_INDEL_GK_final.vcf
 
-list genotype and reads number:
-awk '{nn=0; tmp1=$1"\t"$2"\t"$4; tmp2=$11"\t"$12"\t"$13 
+### 11.4 list genotype and reads number:
+* awk '{nn=0; tmp1=$1"\t"$2"\t"$4; tmp2=$11"\t"$12"\t"$13 
 for(i=17;i<=NF;i++) 
   { split($i,a,":"); 
     if(a[1]=="./."){tmp2=tmp2"\t."}
@@ -263,11 +263,11 @@ for(i=17;i<=NF;i++)
     } 
     {print tmp1"\t"nn"\t"tmp2}}' SNP_INDEL_GK_final.vcf > SNP_INDEL_GK.final
 
-#merge GATK and Freebayes
-cat SNP_INDEL_GK.final SNP_INDEL_FB.final |sort -k1,1 -k2,2n > SNP_INDEL_SN.final
+### 11.5 merge GATK and Freebayes
+* cat SNP_INDEL_GK.final SNP_INDEL_FB.final |sort -k1,1 -k2,2n > SNP_INDEL_SN.final
 
-#Annotation
-awk '/^NC/ {print $1"\t"$2"\t"$2+1"\t"$0}' SNP_INDEL_SN.final |sort -k1,1 -k2,2n |uniq > AllVarVCF.bed
-bedtools intersect -loj -a AllVarVCF.bed  -b Pos_gene.bed> AllVar.final
+### 11.6 Annotation
+* awk '/^NC/ {print $1"\t"$2"\t"$2+1"\t"$0}' SNP_INDEL_SN.final |sort -k1,1 -k2,2n |uniq > AllVarVCF.bed
+* bedtools intersect -loj -a AllVarVCF.bed  -b Pos_gene.bed> AllVar.final
 
 
